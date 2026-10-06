@@ -1,85 +1,73 @@
 # Market Risk VaR and Expected Shortfall Backtesting
 
-This project evaluates one-day market-risk estimates for a diversified ETF portfolio using Historical, Parametric Normal, and Monte Carlo Normal Value at Risk (VaR) and Expected Shortfall (ES). It moves from controlled data preparation to static model comparison and then to a 250-day rolling, one-day-ahead backtest. The emphasis is on transparent assumptions, reproducible controls, and interpretation appropriate for a junior market risk analyst portfolio.
+This project compares Historical, Parametric Normal, and Monte Carlo Normal
+one-day Value at Risk (VaR) for a fixed ETF portfolio. I first compare static
+VaR and Expected Shortfall (ES) estimates, then use a 250-day rolling window to
+test one-day-ahead forecasts at 95% and 99% confidence.
 
-**Stack:** Python, pandas, NumPy, SciPy, yfinance, Matplotlib, Seaborn, and Jupyter.
+The 95% results were fairly close to the expected breach rate. At 99%, both
+Normal models had too many breaches. Historical VaR was closer to the expected
+99% frequency, but its breaches were clustered. Monte Carlo stayed close to
+Parametric Normal because both methods used the same Normal distribution
+assumption.
 
-## Executive Summary
+## Portfolio and data
 
-- At 95% confidence, all three rolling models produced breach rates near the theoretical 5% rate. Parametric Normal was closest at **5.05%**; its Kupiec, independence, and conditional-coverage tests all failed to reject at the 5% significance level.
-- At 99%, both Normal models materially undercovered risk: Parametric Normal breached **2.32%** of days and Monte Carlo Normal **2.37%**, versus a theoretical 1%. Kupiec and conditional-coverage tests reject both models.
-- Historical 99% VaR was closer in frequency at **1.44%**. Its Kupiec test does not reject unconditional coverage at 5%, but the independence and conditional-coverage tests reject, indicating that breaches were clustered rather than independently distributed.
-- Monte Carlo Normal did not clearly improve on Parametric Normal. This is consistent with both models imposing essentially the same multivariate Normal distribution; simulation alone does not create richer tails.
-- The worst realized loss was **6.59% on 2020-03-12**. All three 99% VaR forecasts were breached that day: Historical **2.45%**, Parametric Normal **1.61%**, and Monte Carlo Normal **1.58%**.
-
-These results suggest that calibration at 95% was reasonable over this sample, while 99% tail coverage was more challenging. A failure to reject a statistical null does not prove that a model is correct, and the backtest is evidence about this portfolio, window, and historical period—not a production-model approval.
-
-## Business Question
-
-> Which one-day VaR model provides the most reliable risk coverage for a diversified ETF portfolio, and how do the models behave when volatility rises abruptly?
-
-The analysis separates several related questions:
-
-- Does each model produce the expected breach frequency at 95% and 99% confidence?
-- Are breaches independent, or do they cluster during turbulent markets?
-- How much loss severity remains beyond VaR, as summarized by ES?
-- How does a 250-trading-day Historical model adjust when an extreme event enters the window?
-- Do Normal Monte Carlo simulations improve tail behavior when their distributional assumption matches the Parametric Normal model?
-
-## Portfolio and Data
-
-| ETF | Exposure | Fixed weight |
+| ETF | Exposure | Weight |
 |---|---|---:|
 | SPY | U.S. large-cap equities | 40% |
 | QQQ | U.S. technology-heavy equities | 25% |
 | TLT | Long-duration U.S. Treasuries | 20% |
 | GLD | Gold | 15% |
 
-Prices come from Yahoo Finance through `yfinance`, using daily data, `auto_adjust=True`, and a download start parameter of `2018-01-01`. The valid adjusted-price sample runs from **2018-01-02 to 2026-09-21**; aligned simple returns run from **2018-01-03 to 2026-09-21** and contain 2,190 observations. The portfolio is modeled as daily rebalanced to constant weights. Transaction costs, turnover, taxes, and implementation frictions are excluded.
+The portfolio is treated as rebalanced to these fixed weights each day. This
+keeps the comparison focused on the risk models rather than changes in asset
+allocation.
 
-The frozen raw CSV contains one trailing date, `2026-09-22`, for which all four ETFs' Open, High, Low, and Close values are missing. Volume is non-zero on that date, but Volume does not establish price validity. The date is therefore excluded from price and return calculations without filling, interpolating, or overwriting the raw data.
+Daily prices come from Yahoo Finance through `yfinance` with
+`auto_adjust=True`. The valid price sample runs from `2018-01-02` to
+`2026-09-21`, producing 2,190 aligned return observations. The saved raw file
+also contains a trailing `2026-09-22` row with no valid prices, which is
+excluded before returns are calculated. More detail is in
+[`docs/data_notes.md`](docs/data_notes.md).
 
-The raw market-data CSV is intentionally ignored by Git and can be generated with [`src/download_data.py`](src/download_data.py). The processed returns, model results, and figures included here form a frozen analytical snapshot. A future download may differ because of later trading days, vendor revisions, corporate-action adjustments, or interface changes. See [`docs/data_notes.md`](docs/data_notes.md) for source details.
+## Models and backtest design
 
-## Methodology
+- **Historical VaR and ES** use the observed loss distribution. The method can
+  reflect fat tails already present in the window, but the 99% estimate from
+  250 days depends on only about 2–3 tail observations.
+- **Parametric Normal VaR and ES** use the rolling sample mean and standard
+  deviation under a Normal return assumption. This gives a simple benchmark
+  that responds to changing volatility but keeps symmetric, thin tails.
+- **Monte Carlo Normal VaR and ES** simulate correlated returns for the four
+  ETFs using the rolling mean vector and covariance matrix. The rolling model
+  uses 20,000 paths per date and a fixed random seed. Because the simulated
+  returns are Normal, I expect its results to be close to Parametric Normal.
 
-All models use simple daily returns and define positive loss as `loss = -portfolio_return`. VaR and ES are reported as positive one-day loss amounts.
+Loss is defined as the negative of portfolio return, so VaR and ES are reported
+as positive loss amounts. A breach occurs only when realized loss is strictly
+greater than VaR.
 
-- **Historical:** VaR is the empirical loss quantile using NumPy's explicit `method="linear"`; ES is the mean of observed losses at or above VaR. The approach reflects realized tail behavior but depends on the regimes and limited tail observations in its estimation window.
-- **Parametric Normal:** VaR and ES use the sample mean and sample standard deviation (`ddof=1`) under a Normal return assumption. It is transparent and responsive to volatility, but symmetric thin tails may understate extreme losses.
-- **Monte Carlo Normal:** Four-asset returns are simulated jointly from the rolling historical mean vector and covariance matrix, then aggregated using the fixed weights. The static study uses 100,000 paths. The rolling study uses 20,000 paths per forecast date, seed 42, and common random numbers for reproducibility. Because the simulated distribution remains Normal, close agreement with Parametric Normal is expected and is not independent validation.
-- **Expected Shortfall:** ES measures the average loss at or beyond the VaR threshold. It complements breach-based VaR tests by describing tail severity, but this project does not perform a formal ES backtest.
+For each forecast date, all three models use the preceding 250 trading days and
+not the current day's return. The first forecast is `2019-01-02`, the last is
+`2026-09-21`, and the backtest contains 1,940 one-day-ahead forecasts. I use the
+Kupiec unconditional-coverage test for breach frequency, the Christoffersen
+independence test for clustering, and the Christoffersen conditional-coverage
+test for both properties together.
 
-## Backtesting Design
+## Main results
 
-Each forecast uses the preceding **250 trading days** and predicts the next day's risk without look-ahead. The first forecast is **2019-01-02**, the last is **2026-09-21**, and the evaluation contains **1,940** one-day-ahead forecasts. A breach is recorded only when realized loss is strictly greater than VaR; equality is not a breach.
-
-Expected breach probabilities are 5% at 95% confidence and 1% at 99%. Model diagnostics include:
-
-- the Kupiec unconditional-coverage test for breach frequency;
-- the Christoffersen independence test for breach clustering; and
-- the Christoffersen conditional-coverage test combining frequency and independence.
-
-The tests use asymptotic chi-square reference distributions. Their 99% results should be interpreted carefully because the expected breach count is only 19.4 and finite-sample behavior can matter.
-
-## Static VaR and ES Results
-
-The full-sample static estimates use 2,190 returns and an illustrative USD 1,000,000 portfolio.
-
-| Model | Confidence | VaR | ES | VaR on USD 1m | ES on USD 1m |
-|---|---:|---:|---:|---:|---:|
-| Historical | 95% | 1.370% | 2.060% | $13,701 | $20,605 |
-| Historical | 99% | 2.427% | 3.427% | $24,275 | $34,268 |
-| Parametric Normal | 95% | 1.401% | 1.770% | $14,005 | $17,700 |
-| Parametric Normal | 99% | 2.003% | 2.303% | $20,031 | $23,027 |
-| Monte Carlo Normal | 95% | 1.398% | 1.766% | $13,983 | $17,660 |
-| Monte Carlo Normal | 99% | 1.998% | 2.287% | $19,984 | $22,873 |
-
-Historical 99% VaR and ES exceed both Normal-model estimates. This is consistent with the portfolio return sample's **8.71 excess kurtosis**, which indicates materially heavier tails than a Normal distribution. At 95%, however, both Normal VaRs are slightly above Historical VaR, so no model is uniformly most conservative. These static full-sample estimates illustrate model mechanics and risk levels; they are not out-of-sample validation.
+The static estimates help show how the assumptions affect tail size. Using all
+2,190 returns, Historical 99% VaR was 2.427% and ES was 3.427%. Parametric
+Normal produced 2.003% and 2.303%, while Monte Carlo Normal produced 1.998% and
+2.287%. The larger Historical tail is consistent with the sample's 8.71 excess
+kurtosis. At 95%, however, the two Normal VaRs were slightly higher than
+Historical VaR, so the model ordering was not the same at both confidence
+levels.
 
 ![Static one-day VaR and ES comparison](outputs/figures/static_var_es_comparison.png)
 
-## Rolling Backtest Results
+The rolling results are the main part of the project:
 
 | Model | Confidence | Expected breaches | Actual breaches | Actual rate | Kupiec | Independence | Conditional coverage |
 |---|---:|---:|---:|---:|---|---|---|
@@ -90,50 +78,85 @@ Historical 99% VaR and ES exceed both Normal-model estimates. This is consistent
 | Monte Carlo Normal | 95% | 97.0 | 101 | 5.21% | Do not reject (0.679) | Do not reject (0.739) | Do not reject (0.868) |
 | Monte Carlo Normal | 99% | 19.4 | 46 | 2.37% | Reject (<0.001) | Do not reject (0.120) | Reject (<0.001) |
 
-Values in parentheses are p-values. “Do not reject” means the sample does not provide sufficient evidence against the relevant null at the 5% significance level; it does not establish that the model is correct.
+At 95%, breach rates ranged from 5.05% to 5.67%, and none of the three tests
+rejected for any model. This is reasonably close to the expected 5% rate for
+this sample, although a non-rejection does not prove that a model is correct.
+
+At 99%, the two Normal models breached more than twice as often as the expected
+1% rate. Their Kupiec and conditional-coverage tests rejected. Historical had
+only 28 breaches and its Kupiec result did not reject, but its independence and
+conditional-coverage results did. Looking only at the total breach count would
+therefore miss the clustering in Historical VaR failures.
 
 ![Actual versus theoretical VaR breach rates](outputs/figures/breach_rate_comparison.png)
 
-The 99% rolling paths show different adaptation patterns. Historical VaR changes in steps as observations enter and leave the 250-day window, while the two Normal estimates move more gradually with rolling mean and volatility. The two Normal lines remain close because they share the same distributional assumption.
+The rolling 99% paths also show the difference in how the models update.
+Historical VaR moves in steps as observations enter and leave the window. The
+Normal estimates move more smoothly and remain close to one another.
 
 ![Rolling one-day 99% VaR backtest](outputs/figures/rolling_var_backtest_99.png)
 
-## Stress-Period Findings
+## What happened during stress
 
-The fixed stress-period labels are used only for ex-post evaluation; they do not enter model estimation:
+The COVID-19 sell-off label covers `2020-02-19` to `2020-04-30`. Historical VaR
+recorded 14 breaches at 95% and 8 at 99%. Parametric Normal and Monte Carlo
+Normal each recorded 12 breaches at 95% and 8 at 99%.
 
-- **COVID-19 sell-off, 2020-02-19 to 2020-04-30:** Historical recorded 14 breaches at 95% and 8 at 99%; each Normal model recorded 12 and 8. The 99% Historical threshold first reached 1.5 times its pre-period level on 2020-03-10, compared with 2020-03-12 for both Normal models. This timing reflects different updating mechanics, not proof of superior forecasting. Historical 99% VaR still had eight breaches during the period.
-- **2022 tightening, 2022-01-03 to 2022-12-30:** 95% breach counts were 31 Historical, 31 Parametric Normal, and 32 Monte Carlo Normal. At 99%, the counts were 9, 16, and 16, respectively.
-
-On the worst day, 2020-03-12, the realized 6.59% loss exceeded every 99% forecast. The gap was largest for the Normal models, whose thresholds were close to 1.6% before the shock.
+The worst loss in the backtest was **6.59% on 2020-03-12**. All three 99% VaR
+forecasts were breached that day: Historical was 2.45%, Parametric Normal was
+1.61%, and Monte Carlo Normal was 1.58%. Using a simple response marker of 1.5
+times the pre-COVID median 99% VaR, Historical reached the marker on
+`2020-03-10`; both Normal models reached it on `2020-03-12`. Historical reacted
+earlier by this rule, but it still experienced eight 99% breaches during the
+period.
 
 ![COVID-19 rolling 99% VaR response](outputs/figures/covid_var_backtest_zoom.png)
 
-## Risk Management Interpretation
+During the 2022 tightening period, 95% breach counts were 31 for Historical, 31
+for Parametric Normal, and 32 for Monte Carlo Normal. At 99%, the counts were 9,
+16, and 16.
 
-Parametric Normal provided the closest 95% breach frequency, and none of its 95% tests rejected. That supports its use as a transparent benchmark within this sample, subject to the limits of statistical power and model assumptions. At 99%, neither Normal approach delivered adequate unconditional or conditional coverage. Historical 99% VaR was closer to the target breach rate, but the rejected independence and conditional-coverage tests indicate clustered failures during stress.
+## What I learned
 
-For monitoring, the evidence supports separating three questions: frequency, independence, and severity. Breach counts alone would miss the Historical model's clustering problem; VaR alone would miss the size of losses after the threshold. A practical model review would therefore combine rolling coverage tests, ES or breach-severity monitoring, stress-period analysis, and investigation of market-data and regime changes. These results are analytical evidence, not investment advice or a regulatory capital determination.
+First, breach frequency is only one part of a backtest. Historical 99% VaR had
+a frequency closer to 1% than the Normal models, but the independence result
+showed that its failures arrived in clusters. The breach dates matter as well as
+the total.
+
+Second, Monte Carlo is not automatically a better tail model. I initially
+expected the simulation results to differ more from Parametric Normal. They did
+not, because both approaches used the same Normal distribution and the same
+underlying covariance information. Simulation changes how returns are
+generated; it does not create fat tails by itself.
+
+Finally, the confidence level changes the conclusion. The models looked much
+more comfortable at 95% than at 99%. A 250-day window contains little evidence
+about a 1% tail, especially for the Historical model, so a result that looks
+reasonable at one confidence level should not be assumed to work at another.
 
 ## Limitations
 
-- Constant daily rebalancing is assumed; transaction costs, turnover, taxes, liquidity, and execution constraints are excluded.
-- The portfolio contains linear ETF exposures only and does not model options, nonlinear payoffs, intraday risk, or basis risk.
-- A 250-day window is a convention, not the only reasonable choice; shorter and longer windows would change responsiveness and sampling error.
-- A 99% Historical estimate from 250 observations relies on only about 2–3 tail observations and is sensitive to individual extremes.
-- Normal models impose symmetric, thin-tailed returns despite observed excess kurtosis.
-- Monte Carlo Normal is a simulation engine, not an independent tail model, because its distributional assumption matches Parametric Normal.
-- The project does not perform a formal ES backtest or evaluate filtered historical simulation, EVT, GARCH, t-distributions, or regime-switching challengers.
-- Kupiec and Christoffersen p-values use asymptotic reference distributions and can be fragile with small 99% breach counts.
-- Yahoo Finance data may be revised, and future downloads may not reproduce this frozen snapshot exactly.
+- The portfolio uses fixed, linear ETF weights and excludes transaction costs,
+  liquidity effects, and nonlinear positions.
+- The 250-day window is a modeling choice; shorter or longer windows would
+  change responsiveness and sampling error.
+- Historical 99% VaR is based on very few tail observations in each window.
+- Parametric Normal and Monte Carlo Normal both impose symmetric, thin-tailed
+  returns.
+- The project calculates ES but does not include a formal ES backtest.
+- Results depend on the selected Yahoo Finance sample and may change with a
+  different period or later data revisions.
 
-## Project Structure
+## Repository structure
 
 ```text
 market-risk-var-es-backtesting-python/
 ├── data/
-│   ├── raw/                       # Generated raw market data; CSV ignored by Git
-│   └── processed/                 # Frozen asset and portfolio return series
+│   ├── raw/
+│   │   └── README.md
+│   └── processed/
+│       ├── asset_returns.csv
+│       └── portfolio_returns.csv
 ├── docs/
 │   ├── data_notes.md
 │   └── project_notes.md
@@ -142,8 +165,8 @@ market-risk-var-es-backtesting-python/
 │   ├── 02_var_es_models.ipynb
 │   └── 03_var_backtesting.ipynb
 ├── outputs/
-│   ├── figures/                   # Eight exported analytical figures
-│   └── tables/                    # Static and rolling result CSVs
+│   ├── figures/
+│   └── tables/
 ├── src/
 │   └── download_data.py
 ├── .gitignore
@@ -151,7 +174,7 @@ market-risk-var-es-backtesting-python/
 └── requirements.txt
 ```
 
-## How to Run
+## How to run
 
 From the project root:
 
@@ -166,22 +189,7 @@ python3 -m jupyter nbconvert --execute --to notebook --inplace notebooks/02_var_
 python3 -m jupyter nbconvert --execute --to notebook --inplace notebooks/03_var_backtesting.ipynb
 ```
 
-Run the notebooks in numerical order; each notebook is designed to execute from a fresh kernel. The committed processed data and outputs represent the documented frozen snapshot. Running the downloader today may produce a different raw file and therefore different downstream results. The downloader checks the expected columns, date order, duplicate dates, and missing Close values before saving the raw CSV.
-
-Notebook workflow: [`01_data_and_portfolio_setup.ipynb`](notebooks/01_data_and_portfolio_setup.ipynb) → [`02_var_es_models.ipynb`](notebooks/02_var_es_models.ipynb) → [`03_var_backtesting.ipynb`](notebooks/03_var_backtesting.ipynb).
-
-## Skills Demonstrated
-
-- Market-data validation and reproducible data lineage
-- Portfolio-return construction and alignment controls
-- Historical, Parametric Normal, and multivariate Monte Carlo VaR/ES
-- Rolling one-day-ahead forecasting without look-ahead bias
-- Kupiec and Christoffersen backtesting
-- Stress-period and breach-severity interpretation
-- Reproducible notebooks, numerical assertions, and publication-ready figures
-
-## Project Status
-
-The three notebooks have been executed top to bottom, and their frozen outputs are included. The project is complete as an analyst portfolio study and ready for GitHub presentation within the documented scope. It is not presented as a production risk engine, regulatory model, trading strategy, or investment recommendation.
-
-For design decisions, lessons learned, and possible extensions, see [`docs/project_notes.md`](docs/project_notes.md).
+Run the notebooks in numerical order. Downloading data again may produce a
+different sample, so it should not be expected to reproduce the committed
+snapshot exactly. Notes on the main choices and possible extensions are in
+[`docs/project_notes.md`](docs/project_notes.md).
