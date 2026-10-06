@@ -39,7 +39,7 @@ Prices come from Yahoo Finance through `yfinance`, using daily data, `auto_adjus
 
 The frozen raw CSV contains one trailing date, `2026-09-22`, for which all four ETFs' Open, High, Low, and Close values are missing. Volume is non-zero on that date, but Volume does not establish price validity. The date is therefore excluded from price and return calculations without filling, interpolating, or overwriting the raw data.
 
-The raw market-data CSV is intentionally ignored by Git and can be generated with [`src/download_data.py`](src/download_data.py). The processed returns, model results, and figures included here form a frozen analytical snapshot. A future download may differ because of later trading days, vendor revisions, corporate-action adjustments, or interface changes. See [`docs/data_provenance.md`](docs/data_provenance.md) for source details, environment versions, and checksums.
+The raw market-data CSV is intentionally ignored by Git and can be generated with [`src/download_data.py`](src/download_data.py). The processed returns, model results, and figures included here form a frozen analytical snapshot. A future download may differ because of later trading days, vendor revisions, corporate-action adjustments, or interface changes. See [`docs/data_notes.md`](docs/data_notes.md) for source details.
 
 ## Methodology
 
@@ -135,7 +135,7 @@ market-risk-var-es-backtesting-python/
 │   ├── raw/                       # Generated raw market data; CSV ignored by Git
 │   └── processed/                 # Frozen asset and portfolio return series
 ├── docs/
-│   ├── data_provenance.md
+│   ├── data_notes.md
 │   └── project_reflection.md
 ├── notebooks/
 │   ├── 01_data_and_portfolio_setup.ipynb
@@ -166,7 +166,7 @@ python3 -m jupyter nbconvert --execute --to notebook --inplace notebooks/02_var_
 python3 -m jupyter nbconvert --execute --to notebook --inplace notebooks/03_var_backtesting.ipynb
 ```
 
-Run the notebooks in numerical order; each notebook is designed to execute from a fresh kernel. The committed processed data and outputs represent the documented frozen snapshot. Running the downloader today may produce a different raw file and therefore different downstream results. The downloader validates the two-level OHLCV structure, date ordering, duplicates, missing fields, and trailing empty-price dates before atomically replacing its output.
+Run the notebooks in numerical order; each notebook is designed to execute from a fresh kernel. The committed processed data and outputs represent the documented frozen snapshot. Running the downloader today may produce a different raw file and therefore different downstream results. The downloader checks the expected columns, date order, duplicate dates, and missing Close values before saving the raw CSV.
 
 Notebook workflow: [`01_data_and_portfolio_setup.ipynb`](notebooks/01_data_and_portfolio_setup.ipynb) → [`02_var_es_models.ipynb`](notebooks/02_var_es_models.ipynb) → [`03_var_backtesting.ipynb`](notebooks/03_var_backtesting.ipynb).
 

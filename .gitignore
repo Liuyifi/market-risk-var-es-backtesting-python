@@ -9,11 +9,8 @@ data/processed/*
 outputs/figures/*
 outputs/tables/*
 
-!data/raw/.gitkeep
-!data/processed/.gitkeep
+!data/raw/README.md
 !data/processed/asset_returns.csv
 !data/processed/portfolio_returns.csv
-!outputs/figures/.gitkeep
 !outputs/figures/*.png
-!outputs/tables/.gitkeep
 !outputs/tables/*.csv
