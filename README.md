@@ -136,7 +136,7 @@ market-risk-var-es-backtesting-python/
 │   └── processed/                 # Frozen asset and portfolio return series
 ├── docs/
 │   ├── data_notes.md
-│   └── project_reflection.md
+│   └── project_notes.md
 ├── notebooks/
 │   ├── 01_data_and_portfolio_setup.ipynb
 │   ├── 02_var_es_models.ipynb
@@ -184,4 +184,4 @@ Notebook workflow: [`01_data_and_portfolio_setup.ipynb`](notebooks/01_data_and_p
 
 The three notebooks have been executed top to bottom, and their frozen outputs are included. The project is complete as an analyst portfolio study and ready for GitHub presentation within the documented scope. It is not presented as a production risk engine, regulatory model, trading strategy, or investment recommendation.
 
-For design decisions, lessons learned, and possible extensions, see [`docs/project_reflection.md`](docs/project_reflection.md).
+For design decisions, lessons learned, and possible extensions, see [`docs/project_notes.md`](docs/project_notes.md).
