@@ -8,12 +8,18 @@ Christoffersen tests; ES is reported as a companion measure of tail severity.
 
 ## Key findings
 
-| Result | What it showed |
+| Finding | Result |
 |---|---|
-| 95% VaR | Breach rates were 5.05%–5.67%, broadly close to the expected 5% for all three models. |
-| 99% Normal VaR | Parametric Normal and Monte Carlo Normal breached on 2.32% and 2.37% of days—more than twice the expected rate—and failed the Kupiec and conditional-coverage tests. |
-| 99% Historical VaR | Its 1.44% breach rate was closer to the 1% target, but the independence test rejected because breaches clustered. |
-| Monte Carlo | Simulation did not produce a better tail model by itself: results stayed close to Parametric Normal because both used the same Normal assumption. |
+| Backtest scope | 1,940 one-day-ahead forecasts using a 250-day rolling window |
+| 95% VaR | Breach rates ranged from 5.05% to 5.67%; no coverage test rejected |
+| 99% Normal VaR | Parametric Normal breached 2.32%; Monte Carlo Normal 2.37%; both failed unconditional and conditional coverage |
+| Historical 99% VaR | 1.44% breach rate; frequency was closer to 1%, but independence rejected because breaches clustered |
+| Worst realized loss | 6.59% on 2020-03-12 |
+
+The models looked considerably more comfortable at 95% than at 99%. Monte Carlo
+stayed close to Parametric Normal because both used the same Normal assumption.
+Historical 99% VaR looked better on breach count alone, but clustering changed
+the conclusion.
 
 ## Portfolio and data
 
