@@ -1,15 +1,19 @@
-# Market Risk VaR and Expected Shortfall Backtesting
+# Market Risk VaR Backtesting & Expected Shortfall Analysis
 
 This project compares Historical, Parametric Normal, and Monte Carlo Normal
-one-day Value at Risk (VaR) for a fixed ETF portfolio. I first compare static
-VaR and Expected Shortfall (ES) estimates, then use a 250-day rolling window to
-test one-day-ahead forecasts at 95% and 99% confidence.
+VaR and ES for a fixed portfolio of U.S. equities, long-duration Treasuries,
+and gold. I evaluated 1,940 one-day-ahead VaR forecasts at 95% and 99% using a
+250-day rolling window. VaR is formally backtested with Kupiec and
+Christoffersen tests; ES is reported as a companion measure of tail severity.
 
-The 95% results were fairly close to the expected breach rate. At 99%, both
-Normal models had too many breaches. Historical VaR was closer to the expected
-99% frequency, but its breaches were clustered. Monte Carlo stayed close to
-Parametric Normal because both methods used the same Normal distribution
-assumption.
+## Key findings
+
+| Result | What it showed |
+|---|---|
+| 95% VaR | Breach rates were 5.05%–5.67%, broadly close to the expected 5% for all three models. |
+| 99% Normal VaR | Parametric Normal and Monte Carlo Normal breached on 2.32% and 2.37% of days—more than twice the expected rate—and failed the Kupiec and conditional-coverage tests. |
+| 99% Historical VaR | Its 1.44% breach rate was closer to the 1% target, but the independence test rejected because breaches clustered. |
+| Monte Carlo | Simulation did not produce a better tail model by itself: results stayed close to Parametric Normal because both used the same Normal assumption. |
 
 ## Portfolio and data
 
@@ -57,13 +61,11 @@ test for both properties together.
 
 ## Main results
 
-The static estimates help show how the assumptions affect tail size. Using all
-2,190 returns, Historical 99% VaR was 2.427% and ES was 3.427%. Parametric
-Normal produced 2.003% and 2.303%, while Monte Carlo Normal produced 1.998% and
-2.287%. The larger Historical tail is consistent with the sample's 8.71 excess
-kurtosis. At 95%, however, the two Normal VaRs were slightly higher than
-Historical VaR, so the model ordering was not the same at both confidence
-levels.
+Full-sample estimates show how assumptions affect tail size. Historical 99%
+VaR and ES were 2.427% and 3.427%, versus 2.003% and 2.303% for Parametric
+Normal and 1.998% and 2.287% for Monte Carlo Normal. The larger Historical tail
+is consistent with 8.71 excess kurtosis; at 95%, however, both Normal VaRs were
+slightly higher.
 
 ![Static one-day VaR and ES comparison](outputs/figures/static_var_es_comparison.png)
 
@@ -78,15 +80,10 @@ The rolling results are the main part of the project:
 | Monte Carlo Normal | 95% | 97.0 | 101 | 5.21% | Do not reject (0.679) | Do not reject (0.739) | Do not reject (0.868) |
 | Monte Carlo Normal | 99% | 19.4 | 46 | 2.37% | Reject (<0.001) | Do not reject (0.120) | Reject (<0.001) |
 
-At 95%, breach rates ranged from 5.05% to 5.67%, and none of the three tests
-rejected for any model. This is reasonably close to the expected 5% rate for
-this sample, although a non-rejection does not prove that a model is correct.
-
-At 99%, the two Normal models breached more than twice as often as the expected
-1% rate. Their Kupiec and conditional-coverage tests rejected. Historical had
-only 28 breaches and its Kupiec result did not reject, but its independence and
-conditional-coverage results did. Looking only at the total breach count would
-therefore miss the clustering in Historical VaR failures.
+At 95%, no test rejected any model; non-rejection does not prove correctness.
+At 99%, the Normal models failed Kupiec and conditional coverage. Historical
+passed Kupiec but failed independence and conditional coverage, so its closer
+breach count still hid clustering.
 
 ![Actual versus theoretical VaR breach rates](outputs/figures/breach_rate_comparison.png)
 
@@ -96,16 +93,18 @@ Normal estimates move more smoothly and remain close to one another.
 
 ![Rolling one-day 99% VaR backtest](outputs/figures/rolling_var_backtest_99.png)
 
-## What happened during stress
+## Stress-period analysis
 
-The COVID-19 sell-off label covers `2020-02-19` to `2020-04-30`. Historical VaR
-recorded 14 breaches at 95% and 8 at 99%. Parametric Normal and Monte Carlo
-Normal each recorded 12 breaches at 95% and 8 at 99%.
+The COVID-19 sell-off (`2020-02-19` to `2020-04-30`) and 2022 tightening period
+are ex-post descriptive labels; they were not used in model fitting. Historical
+VaR recorded 14 COVID-period breaches at 95% and 8 at 99%. Parametric Normal
+and Monte Carlo Normal each recorded 12 breaches at 95% and 8 at 99%.
 
 The worst loss in the backtest was **6.59% on 2020-03-12**. All three 99% VaR
 forecasts were breached that day: Historical was 2.45%, Parametric Normal was
-1.61%, and Monte Carlo Normal was 1.58%. Using a simple response marker of 1.5
-times the pre-COVID median 99% VaR, Historical reached the marker on
+1.61%, and Monte Carlo Normal was 1.58%. As a simple descriptive response
+marker—not an industry standard—I used 1.5 times the pre-COVID median 99% VaR.
+Historical reached the marker on
 `2020-03-10`; both Normal models reached it on `2020-03-12`. Historical reacted
 earlier by this rule, but it still experienced eight 99% breaches during the
 period.
@@ -118,18 +117,13 @@ for Parametric Normal, and 32 for Monte Carlo Normal. At 99%, the counts were 9,
 
 ## What I learned
 
-First, breach frequency is only one part of a backtest. Historical 99% VaR had
-a frequency closer to 1% than the Normal models, but the independence result
-showed that its failures arrived in clusters. The breach dates matter as well as
-the total.
-
-Second, Monte Carlo is not automatically a better tail model. I initially
+Monte Carlo is not automatically a better tail model. I initially
 expected the simulation results to differ more from Parametric Normal. They did
 not, because both approaches used the same Normal distribution and the same
 underlying covariance information. Simulation changes how returns are
 generated; it does not create fat tails by itself.
 
-Finally, the confidence level changes the conclusion. The models looked much
+The confidence level also changes the conclusion. The models looked much
 more comfortable at 95% than at 99%. A 250-day window contains little evidence
 about a 1% tail, especially for the Historical model, so a result that looks
 reasonable at one confidence level should not be assumed to work at another.
@@ -143,6 +137,8 @@ reasonable at one confidence level should not be assumed to work at another.
 - Historical 99% VaR is based on very few tail observations in each window.
 - Parametric Normal and Monte Carlo Normal both impose symmetric, thin-tailed
   returns.
+- The asymptotic backtest p-values should be interpreted cautiously when 99%
+  breaches are sparse.
 - The project calculates ES but does not include a formal ES backtest.
 - Results depend on the selected Yahoo Finance sample and may change with a
   different period or later data revisions.
